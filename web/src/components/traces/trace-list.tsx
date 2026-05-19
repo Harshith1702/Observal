@@ -5,8 +5,8 @@
 
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useCallback } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useTraces } from "@/hooks/use-api";
 import { Input } from "@/components/ui/input";
 import {
@@ -79,10 +79,39 @@ const IDES = [
 
 export function TraceList() {
   const router = useRouter();
-  const [search, setSearch] = useState("");
-  const [traceType, setTraceType] = useState("all");
-  const [ide, setIde] = useState("all");
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  
+  const [search, setSearch] = useState(
+    searchParams.get("search") ?? "",                          
+  );
+  const [traceType, setTraceType] = useState(
+    searchParams.get("traceType") ?? "all",
+  );
+  const [ide, setIde] = useState(
+    searchParams.get("ide") ?? "all",
+  );
+  const updateURL = useCallback(
+  (newSearch: string, newTraceType: string, newIde: string) => {
+    const params = new URLSearchParams();
 
+    if (newSearch) params.set("search", newSearch);
+
+    if (newTraceType !== "all") {
+      params.set("traceType", newTraceType);
+    }
+
+    if (newIde !== "all") {
+      params.set("ide", newIde);
+    }
+
+    router.replace(`${pathname}?${params.toString()}`, {
+      scroll: false,
+    });
+  },
+  [router, pathname],
+ );
+  
   const filters: Record<string, unknown> = {};
   if (traceType !== "all") filters.trace_type = traceType;
   if (ide !== "all") filters.ide = ide;
@@ -97,6 +126,13 @@ export function TraceList() {
       !search ||
       (t.name as string)?.toLowerCase().includes(search.toLowerCase()),
   );
+  useEffect(() => {
+  const timeout = setTimeout(() => {
+    updateURL(search, traceType, ide);
+  }, 300);
+
+  return () => clearTimeout(timeout);
+  }, [search, traceType, ide, updateURL]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -105,10 +141,18 @@ export function TraceList() {
         <Input
           placeholder="Search by name…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+          }}
           className="h-8 max-w-xs text-sm"
         />
-        <Select value={traceType} onValueChange={setTraceType}>
+        <Select
+          value={traceType}
+          onValueChange={(val) => {
+            setTraceType(val);
+            updateURL(search, val, ide);
+          }}
+        >
           <SelectTrigger className="h-8 w-[140px] text-sm">
             <SelectValue placeholder="Trace type" />
           </SelectTrigger>
@@ -120,7 +164,13 @@ export function TraceList() {
             ))}
           </SelectContent>
         </Select>
-        <Select value={ide} onValueChange={setIde}>
+        <Select
+          value={ide}
+          onValueChange={(val) => {
+            setIde(val);
+            updateURL(search, traceType, val);
+          }}
+        >
           <SelectTrigger className="h-8 w-[140px] text-sm">
             <SelectValue placeholder="IDE" />
           </SelectTrigger>
